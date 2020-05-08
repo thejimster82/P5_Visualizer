@@ -32,25 +32,30 @@ window.onload = function () {
       background_rendered = true,
       trackMouse = false,
       staticRotate = false,
+      globalRotate = false,
       bg_crazy = false,
-      reflective_colors = false;
+      reflective_colors = false,
+      fill_shape = true,
+      stroke_shape = false;
 
-    var zLoc = 200,
+    var zLoc = 0,
       scrollDelta = 0,
       mouseXLastFrame = 0,
       mouseYLastFrame = 0,
       eyeZ,
       rotateXSaved = 0,
       rotateYSaved = 0,
-      rotateZSaved = 0;
+      rotateZSaved = 0,
+      xLocSaved = 0,
+      yLocSaved = 0;
 
-    var canv;
+    var canv, backup_song, gl;
 
     let windowDepth = 0;
     let inconsolata;
     p.preload = function () {
-      inconsolata = p.loadFont("assets/Inconsolata-Regular.ttf");
-      backup_song = p.loadSound("assets/Spell - Shade.mp3");
+      inconsolata = p.loadFont("./assets/Inconsolata-Regular.ttf");
+      backup_song = p.loadSound("./assets/Spell - Shade.mp3");
     };
 
     p.setup = function () {
@@ -71,9 +76,9 @@ window.onload = function () {
       //filter(BLUR, 10);
       p.colorMode(p.HSB, 365, 100, 100, 1);
       partNum = 14;
-      for (i = 0; i < partNum; i++) {
+      for (let i = 0; i < partNum; i++) {
         particles.push([]);
-        for (j = 0; j < partNum; j++) {
+        for (let j = 0; j < partNum; j++) {
           particles[i].push(
             new Particle(
               (p.windowWidth / partNum) * i - p.windowWidth / 2,
@@ -126,14 +131,22 @@ window.onload = function () {
       let lambda = workingPlane.getLambda(Q, v);
       let intersect = p5.Vector.add(Q, p5.Vector.mult(v, lambda));
 
-      //move brush to mouse position in 3-space
+      //move brush to mouse posi1tion in 3-space
       if (trackMouse) {
         p.translate(intersect);
+        xLocSaved = intersect.x;
+        yLocSaved = intersect.y;
+      } else {
+        p.translate(xLocSaved, yLocSaved, intersect.z);
       }
-      if (staticRotate) {
-        p.rotateX(p.millis() / 1000);
-        p.rotateZ(p.millis() / 1000);
-        rotateXSaved = p.millis() / 1000;
+      let waves_sum = waves.reduce((a, b) => a + b, 0);
+      let waves_avg = waves_sum / waves.length || 0;
+      let freq_sum = freqs.reduce((a, b) => a + b, 0);
+      let freq_avg = freq_sum / freqs.length || 0;
+      if (globalRotate) {
+        p.rotateX(p.millis() / 1000 + Math.abs(freq_avg) / 100);
+        p.rotateZ(p.millis() / 1000 + Math.abs(freq_avg) / 100);
+        rotateXSaved = (p.millis() / 1000) * freq_avg;
       }
 
       //p.rotate(rotateXSaved, intersect);
@@ -170,7 +183,10 @@ window.onload = function () {
             slider_mode_1.value(),
             slider_mode_1.value(),
             slider_mode_1.value(),
-            slider_mode_1.value()
+            slider_mode_1.value(),
+            true,
+            fill_shape,
+            stroke_shape
           );
 
         if (controls_visible) {
@@ -178,7 +194,7 @@ window.onload = function () {
           p.fill(255, 0, 0);
           p.textAlign(p.CENTER, p.CENTER);
           p.text(
-            "Controls:\n\n1: enable particles\n2: enable flower\n Space: allow overlap\n f: enable 3D renderer\n e: enable/disable mouse following\n q: enable/disable rotation\nscroll wheel: scale (in mouse follow mode)\nx: enable background rainbow\nd: stop drawing (so you can save)\n3: toggle Controls menu\n\nBy: Jimmy Howerton",
+            "Controls:\n\n1: enable particles\n2: enable flower\n Space: allow overlap\n f: enable 3D renderer\n e: enable/disable mouse following\n q: enable/disable rotation\nscroll wheel: scale (in mouse follow mode)\nx: enable background rainbow\nc: enable/disable float \n v: enable/disable stroke\nd: stop drawing (so you can save)\ng: enable/disable global rotate\n3: toggle Controls menu\n\n By: Jimmy Howerton",
             0,
             0
           );
@@ -214,11 +230,19 @@ window.onload = function () {
         //enable reflective colors(f)
         p.keyCode === 70 && (reflective_colors = !reflective_colors);
 
+        //fill shape (c)
+        p.keyCode === 67 && (fill_shape = !fill_shape);
+        //stroke shape(v)
+        p.keyCode === 86 && (stroke_shape = !stroke_shape);
+
         //track mouse(e)
         p.keyCode === 69 && (trackMouse = !trackMouse);
 
         //static rotate(q)
         p.keyCode === 81 && (staticRotate = !staticRotate);
+
+        //global rotate(g)
+        p.keyCode === 71 && (globalRotate = !globalRotate);
 
         //particles, ellipsoids, landscape (1,2,3)
         p.keyCode === 49 && (particles_visible = !particles_visible);
@@ -242,34 +266,34 @@ window.onload = function () {
     };
 
     p.drawWaveform = function (wave, mode) {
-      stroke(240);
-      noFill();
-      strokeWeight(3);
+      p.stroke(240);
+      p.noFill();
+      p.strokeWeight(3);
       //beginShape();
       for (let i = 0; i < wave.length; i++) {
-        let x = map(i, 0, wave.length, 0, width);
-        let y = map(wave[i], -1, 1, -height / 2, height / 2);
+        let x = p.map(i, 0, wave.length, 0, p.windowWidth);
+        let y = p.map(wave[i], -1, 1, -p.windowHeight / 2, p.windowHeight / 2);
         if (mode == 0) {
-          stroke(wave[i] * 4, x * wave[i] * 4, wave[i] * 4);
+          p.stroke(wave[i] * 4, x * wave[i] * 4, wave[i] * 4);
         } else {
-          stroke(random(255), random(255), random(255));
+          p.stroke(p.random(255), p.random(255), p.random(255));
         }
-        point(x, y + height / 2);
+        p.point(x, y + p.windowHeight / 2);
       }
       //endShape();
     };
 
     p.drawFreqs = function (freqs, mode) {
-      noStroke();
+      p.noStroke();
       for (let i = 0; i < freqs.length; i++) {
-        let x = map(i, 0, freqs.length, 0, width);
-        let h = -height + map(freqs[i], 0, 255, height, 0);
+        let x = p.map(i, 0, freqs.length, 0, p.windowWidth);
+        let h = -p.windowHeight + p.map(freqs[i], 0, 255, p.windowHeight, 0);
         if (mode == 0) {
-          fill(h, x, x / 2);
+          p.fill(h, x, x / 2);
         } else {
-          fill(random(255), random(255), random(255));
+          p.fill(p.random(255), p.random(255), p.andom(255));
         }
-        rect(x, height, width / freqs.length, h);
+        p.rect(x, p.windowHeight, p.windowWidth / freqs.length, h);
       }
     };
 
@@ -281,7 +305,9 @@ window.onload = function () {
       separation,
       fraction,
       detail,
-      oscillate = true
+      oscillate = true,
+      fill_shape,
+      stroke_shape
     ) {
       let freq_sum = freqs.reduce((a, b) => a + b, 0);
       let freq_avg = freq_sum / freqs.length || 0;
@@ -293,23 +319,41 @@ window.onload = function () {
       let detail_XY = Math.floor(detail);
       for (let i = 0; i < freqs.length; i += Math.floor(fraction)) {
         let freq_random = (freqs[i] * randomness) / 10;
-        p.fill(i % 360, freqs[i] % 100, freqs[i] % 100, freqs[i] % 100);
-        p.strokeWeight(10);
-        p.stroke(
-          360 - (i % 360),
-          freqs[i] % 100,
-          freqs[i] % 100,
-          freqs[i] % 100
-        );
+
+        if (fill_shape) {
+          p.fill(i % 360, freqs[i] % 100, freqs[i] % 100, freqs[i] % 100);
+        } else {
+          p.noFill();
+        }
+        if (stroke_shape) {
+          p.strokeWeight(2);
+          p.stroke(
+            360 - (i % 360),
+            freqs[i] % 100,
+            freqs[i] % 100,
+            freqs[i] % 100
+          );
+        } else {
+          p.noStroke();
+        }
+        if (staticRotate) {
+          p.rotateX(Math.abs(freqs[i]) / 10000);
+          p.rotateZ(Math.abs(freqs[i]) / 10000);
+        }
         p.push();
         p.translate(
           ((Math.cos(deg * i) * freqs[i]) / 5) * separation,
           ((Math.sin(deg * i) * freqs[i]) / 5) * separation
         );
         p.rotate(deg * i);
-        p.cone(
+        if (staticRotate) {
+          p.rotateX(Math.abs(freqs[i]) / 1000);
+          p.rotateZ(Math.abs(freqs[i]) / 1000);
+        }
+        p.ellipsoid(
           freqs[i] / 2,
           freqs[i] * 5 + 5 * freq_random,
+          freqs[i] / 2,
           detail_XY,
           detail_XY
         );
@@ -337,8 +381,8 @@ window.onload = function () {
       p.noStroke();
 
       if (mode == 1) {
-        for (i = 0; i < partNum; i++) {
-          for (j = 0; j < partNum; j++) {
+        for (let i = 0; i < partNum; i++) {
+          for (let j = 0; j < partNum; j++) {
             let pVel = p.sqrt(
               p.sq(particles[i][j].xVel) + p.sq(particles[i][j].yVel)
             );
@@ -361,9 +405,15 @@ window.onload = function () {
             //   freqs[freq] % 100,
             //   freqs[freq] % 100
             // );
+            //p.print(Math.abs(freqs[freq])/1000)
+            if (staticRotate) {
+              p.rotateX(Math.abs(freqs[freq]) / 1000);
+              p.rotateZ(Math.abs(freqs[freq]) / 1000);
+            }
             if (spheres) {
               p.push();
               p.translate(particles[i][j].xLoc, particles[i][j].yLoc);
+
               if (reflective_colors) {
                 p.shininess(30);
                 p.specularMaterial(
@@ -372,7 +422,7 @@ window.onload = function () {
                   freqs[freq] % 100
                 );
               }
-              p.sphere(pVel ** 1.5);
+              p.sphere(pVel ** 1.5 + 5);
               p.pop();
             } else {
               p.circle(
@@ -447,9 +497,9 @@ window.onload = function () {
       startX = 10;
       local_height = local_height - 50;
 
-      slider_mode_1 = p.createSlider(3, 100, 5, 0.1);
+      slider_mode_1 = p.createSlider(2, 20, 1, 0.1);
       slider_mode_2 = p.createSlider(0, 1, 0, 0.01);
-      slider_mode_3 = p.createSlider(1, 100, 30);
+      slider_mode_3 = p.createSlider(1, 100, 15);
       micOrSong = p.createCheckbox("use mic", true);
       micOrSong.changed(p.changeAudioSrc);
       saveButton = p.createButton("Save Canvas");
@@ -497,7 +547,7 @@ window.onload = function () {
     p.touchStarted = function () {
       p.getAudioContext().resume();
     };
-    //for allowing user to play a built-in song instead of having to route audio through their mic
+
     p.changeAudioSrc = function () {
       if (this.checked()) {
         if (mic.isPlaying()) {
