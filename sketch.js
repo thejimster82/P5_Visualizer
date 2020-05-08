@@ -24,17 +24,18 @@ window.onload = function () {
 
     var orbiting = false,
       particles_visible = false,
-      ellipsoids_visible = true,
-      landscape_visible = false,
+      ellipsoids_visible = false,
+      controls_visible = true,
       waveform_visible = false,
       fft_visible = false,
       draw_active = true,
       background_rendered = true,
       trackMouse = false,
       staticRotate = false,
-      bg_crazy = false;
+      bg_crazy = false,
+      reflective_colors = false;
 
-    var zLoc = 1000,
+    var zLoc = 200,
       scrollDelta = 0,
       mouseXLastFrame = 0,
       mouseYLastFrame = 0,
@@ -46,8 +47,15 @@ window.onload = function () {
     var canv;
 
     let windowDepth = 0;
+    let inconsolata;
+    p.preload = function () {
+      inconsolata = p.loadFont("assets/Inconsolata-Regular.ttf");
+      backup_song = p.loadSound("assets/Spell - Shade.mp3");
+    };
+
     p.setup = function () {
       canv = p.createCanvas(p.windowWidth, p.windowHeight, p.WEBGL);
+      p.textFont(inconsolata);
       gl = this._renderer.GL;
       gl.disable(gl.DEPTH_TEST);
       p.background(30);
@@ -60,7 +68,6 @@ window.onload = function () {
       mic.connect(fft);
 
       allGUI = p.drawGUI(p.windowWidth, p.windowHeight);
-
       //filter(BLUR, 10);
       p.colorMode(p.HSB, 365, 100, 100, 1);
       partNum = 14;
@@ -69,40 +76,22 @@ window.onload = function () {
         for (j = 0; j < partNum; j++) {
           particles[i].push(
             new Particle(
-              (p.windowWidth / partNum) * i,
-              (p.windowHeight / partNum) * j,
+              (p.windowWidth / partNum) * i - p.windowWidth / 2,
+              (p.windowHeight / partNum) * j - p.windowHeight / 2,
               0,
               0
             )
           );
         }
       }
-      partNum3d = 6;
-      windowDepth = p.windowWidth;
-      for (i = 0; i < partNum3d; i++) {
-        particles3d.push([]);
-        for (j = 0; j < partNum3d; j++) {
-          particles3d[i].push([]);
-          for (k = 0; k < partNum3d; k++) {
-            particles3d[i][j].push(
-              new Particle3d(
-                (p.windowWidth / partNum3d) * i,
-                (p.windowHeight / partNum3d) * j,
-                (p.windowDepth / partNum3d) * k,
-                0,
-                0,
-                0
-              )
-            );
-          }
-        }
-      }
+
       // let terrInfo = genTerrain(w, h, scl);
       // cols = terrInfo[0];
       // rows = terrInfo[1];
     };
 
     p.draw = function () {
+      p.push();
       //____________________window rescaling____________________
       if (width_ != p.windowWidth || height_ != p.windowHeight) {
         p.resizeCanvas(p.windowWidth, p.windowHeight, true);
@@ -111,7 +100,7 @@ window.onload = function () {
       }
 
       //____________________controls____________________
-      zLoc += Math.floor(scrollDelta);
+      zLoc += Math.floor(scrollDelta * 2);
 
       //keep within screen bounds
       zLoc > 10000 && (zLoc = 10000);
@@ -137,27 +126,42 @@ window.onload = function () {
       let lambda = workingPlane.getLambda(Q, v);
       let intersect = p5.Vector.add(Q, p5.Vector.mult(v, lambda));
 
-      staticRotate &&
-        p.rotateX(p.millis() / 1000) &&
-        p.rotateZ(p.millis() / 1000);
-
-      if (p.mouseIsPressed && p.mouseButton === p.RIGHT) {
-        let mouseXDiff = p.mouseX - mouseXLastFrame;
-        rotateXSaved += mouseXDiff / 20;
-        mouseXLastFrame = p.mouseX;
-      }
       //move brush to mouse position in 3-space
-      trackMouse && p.translate(intersect);
+      if (trackMouse) {
+        p.translate(intersect);
+      }
+      if (staticRotate) {
+        p.rotateX(p.millis() / 1000);
+        p.rotateZ(p.millis() / 1000);
+        rotateXSaved = p.millis() / 1000;
+      }
 
-      //adjust coordinate system for WebGL
-      let center = new p5.Vector(-p.windowWidth / 2, -p.windowHeight / 2, 0);
       //p.rotate(rotateXSaved, intersect);
 
       //____________________brush options____________________
       //sub-draw-functions
       background_rendered && p.drawBackground(bg_crazy, slider_mode_2.value());
+
       p.smooth();
+      if (reflective_colors) {
+        p.colorMode(p.RGB);
+        p.lights();
+        // p.pointLight(255, 255, 255, intersect);
+        p.pointLight(255, 255, 255, intersect);
+        p.colorMode(p.HSB, 365, 100, 100, 1);
+      }
       if (draw_active) {
+        particles_visible &&
+          p.drawParticles(
+            freqs,
+            waves,
+            particles,
+            partNum,
+            1,
+            true,
+            slider_mode_3.value(),
+            reflective_colors
+          );
         ellipsoids_visible &&
           p.drawCircles3d(
             freqs,
@@ -169,11 +173,25 @@ window.onload = function () {
             slider_mode_1.value()
           );
 
-        particles_visible &&
-          p.drawParticles(freqs, waves, particles, partNum, 1, true);
-
-        landscape_visible &&
-          p.ThreeDLandscape(freqs, waves, terrain, 10, 10, 10);
+        if (controls_visible) {
+          p.textSize(40);
+          p.fill(255, 0, 0);
+          p.textAlign(p.CENTER, p.CENTER);
+          p.text(
+            "Controls:\n\n1: enable particles\n2: enable flower\n Space: allow overlap\n f: enable 3D renderer\n e: enable/disable mouse following\n q: enable/disable rotation\nscroll wheel: scale (in mouse follow mode)\nx: enable background rainbow\nd: stop drawing (so you can save)\n3: toggle Controls menu\n\nBy: Jimmy Howerton",
+            0,
+            0
+          );
+        }
+        //the whole thing above must be push/poped in order to keep the text from moving with the mouse as well
+        p.pop();
+        p.fill(255, 0, 0);
+        p.textSize(20);
+        p.textAlign(p.LEFT, p.BASELINE);
+        p.text("Flower", -p.windowWidth / 2 + 10, p.windowHeight / 2 - 70);
+        p.text("Background", -p.windowWidth / 2 + 110, p.windowHeight / 2 - 70);
+        p.text("Particles", -p.windowWidth / 2 + 210, p.windowHeight / 2 - 70);
+        //p.ThreeDLandscape(freqs, waves, terrain, 10, 10, 10);
 
         //keep track here so can check if screen size changes on next draw call
         width_ = p.windowWidth;
@@ -193,6 +211,9 @@ window.onload = function () {
         //drawing or not (d)
         p.keyCode === 68 && (draw_active = !draw_active);
 
+        //enable reflective colors(f)
+        p.keyCode === 70 && (reflective_colors = !reflective_colors);
+
         //track mouse(e)
         p.keyCode === 69 && (trackMouse = !trackMouse);
 
@@ -202,16 +223,19 @@ window.onload = function () {
         //particles, ellipsoids, landscape (1,2,3)
         p.keyCode === 49 && (particles_visible = !particles_visible);
         p.keyCode === 50 && (ellipsoids_visible = !ellipsoids_visible);
-        p.keyCode === 51 && (landscape_visible = !landscape_visible);
+        p.keyCode === 51 && (controls_visible = !controls_visible);
 
         //background crazy mode (x)
         p.keyCode === 88 && (bg_crazy = !bg_crazy);
+
+        //orbiting (z)
+        p.keyCode === 90 && (orbiting = !orbiting);
       };
     };
 
     p.drawBackground = function (bg_random, alpha) {
       if (bg_random) {
-        p.background(p.random(360), p.random(100), p.random(100), alpha); // alpha
+        p.background(p.random(360), p.random(100), p.random(100), 100); // alpha
       } else {
         p.background(360, 100, 0, alpha);
       }
@@ -249,38 +273,6 @@ window.onload = function () {
       }
     };
 
-    p.drawCircles = function (
-      freqs,
-      waves,
-      mode,
-      randomness,
-      separation,
-      fraction
-    ) {
-      let freq_sum = freqs.reduce((a, b) => a + b, 0);
-      let freq_avg = freq_sum / freqs.length || 0;
-      let waves_sum = waves.reduce((a, b) => a + b, 0);
-      let waves_avg = waves_sum / waves.length || 0;
-      let deg = 360 / freqs.length;
-      noStroke();
-      //beginShape(LINES);
-      for (let i = 0; i < freqs.length; i += fraction) {
-        let freq_random = (freqs[i] * randomness) / 10;
-        fill(i % 360, freqs[i] % 100, freqs[i] % 100, freqs[i] % 100);
-        let xPos = p.windowWidth / 2;
-        let yPos = p.windowHeight / 2;
-        push();
-        translate(
-          xPos + ((Math.cos(deg * i) * freqs[i]) / 5) * separation,
-          yPos + ((Math.sin(deg * i) * freqs[i]) / 5) * separation
-        );
-        rotate(deg * i);
-        ellipse(0, 0, freqs[i] / 2, freqs[i] * 5 + 5 * freq_random, 5);
-        pop();
-      }
-      //endShape();
-    };
-
     p.drawCircles3d = function (
       freqs,
       waves,
@@ -296,12 +288,19 @@ window.onload = function () {
       let waves_sum = waves.reduce((a, b) => a + b, 0);
       let waves_avg = waves_sum / waves.length || 0;
       let deg = 360 / freqs.length;
-      //p.noStroke();
+
       //beginShape(LINES);
       let detail_XY = Math.floor(detail);
       for (let i = 0; i < freqs.length; i += Math.floor(fraction)) {
         let freq_random = (freqs[i] * randomness) / 10;
         p.fill(i % 360, freqs[i] % 100, freqs[i] % 100, freqs[i] % 100);
+        p.strokeWeight(10);
+        p.stroke(
+          360 - (i % 360),
+          freqs[i] % 100,
+          freqs[i] % 100,
+          freqs[i] % 100
+        );
         p.push();
         p.translate(
           ((Math.cos(deg * i) * freqs[i]) / 5) * separation,
@@ -325,27 +324,27 @@ window.onload = function () {
       particles,
       partNum,
       mode,
-      spheres = false
+      spheres = false,
+      vel_damp,
+      reflective_colors
     ) {
       //sum of frequency information
       let freq_sum = freqs.reduce((a, b) => a + b, 0);
       //average frequency
       let freq_avg = freq_sum / freqs.length || 0;
-      let maxDist =
-        Math.sqrt(
-          p.windowWidth * p.windowWidth + p.windowHeight * p.windowHeight
-        ) / 2;
-      let vel_damp = slider_mode_3.value();
+      let maxDist = p.sqrt(p.sq(p.windowWidth) + p.sq(p.windowHeight)) / 2;
+      p.push();
       p.noStroke();
+
       if (mode == 1) {
         for (i = 0; i < partNum; i++) {
           for (j = 0; j < partNum; j++) {
             let pVel = p.sqrt(
               p.sq(particles[i][j].xVel) + p.sq(particles[i][j].yVel)
             );
-            let particleDist = Math.sqrt(
-              (particles[i][j].xLoc - p.windowWidth / 2) ** 2 +
-                (particles[i][j].yLoc - p.windowHeight / 2) ** 2
+            let particleDist = p.sqrt(
+              p.sq(Math.abs(particles[i][j].xLoc)) +
+                p.sq(Math.abs(particles[i][j].yLoc))
             );
             let freq = Math.ceil(
               ((particleDist / maxDist) * freqs.length) % freqs.length
@@ -356,10 +355,24 @@ window.onload = function () {
               freqs[freq] % 100,
               freqs[freq] % 100
             );
+            // p.stroke(
+            //   360 - (freq % 360),
+            //   freqs[freq] % 100,
+            //   freqs[freq] % 100,
+            //   freqs[freq] % 100
+            // );
             if (spheres) {
               p.push();
               p.translate(particles[i][j].xLoc, particles[i][j].yLoc);
-              p.sphere(pVel ** 1.5 + 5);
+              if (reflective_colors) {
+                p.shininess(30);
+                p.specularMaterial(
+                  freq % 360,
+                  freqs[freq] % 100,
+                  freqs[freq] % 100
+                );
+              }
+              p.sphere(pVel ** 1.5);
               p.pop();
             } else {
               p.circle(
@@ -370,33 +383,34 @@ window.onload = function () {
             }
 
             if (freqs[freq] < freq_avg) {
-              if (particles[i][j].xLoc > p.windowWidth / 2) {
+              if (particles[i][j].xLoc > 0) {
                 particles[i][j].xVel += p.random(-freqs[freq] / vel_damp, 0);
               } else {
                 particles[i][j].xVel += p.random(0, freqs[freq] / vel_damp);
               }
-              if (particles[i][j].yLoc < p.windowHeight / 2) {
+              if (particles[i][j].yLoc < 0) {
                 particles[i][j].yVel += p.random(0, freqs[freq] / vel_damp);
               } else {
                 particles[i][j].yVel += p.random(-freqs[freq] / vel_damp, 0);
               }
             } else {
-              if (particles[i][j].xLoc <= p.windowWidth / 2) {
+              if (particles[i][j].xLoc <= 0) {
                 particles[i][j].xVel += p.random(-freqs[freq] / vel_damp, 0);
               } else {
                 particles[i][j].xVel += p.random(0, freqs[freq] / vel_damp);
               }
-              if (particles[i][j].yLoc >= p.windowHeight / 2) {
+              if (particles[i][j].yLoc >= 0) {
                 particles[i][j].yVel += p.random(0, freqs[freq] / vel_damp);
               } else {
                 particles[i][j].yVel += p.random(-freqs[freq] / vel_damp, 0);
               }
             }
 
-            particles[i][j].move(p.windowWidth, p.windowHeight);
+            particles[i][j].moveWEBGL(p.windowWidth, p.windowHeight);
           }
         }
       }
+      p.pop();
     };
 
     // help from mesh landscape by ada10086 on p5js web editor
@@ -426,22 +440,25 @@ window.onload = function () {
         p.endShape();
       }
     };
-
+    //drawGUI every frame
     p.drawGUI = function (local_width, local_height) {
       let GUI = [];
 
       startX = 10;
       local_height = local_height - 50;
 
-      slider_mode_1 = p.createSlider(1, 10, 5, 0.1);
-      slider_mode_2 = p.createSlider(0, 1, 0.9, 0.01);
+      slider_mode_1 = p.createSlider(3, 100, 5, 0.1);
+      slider_mode_2 = p.createSlider(0, 1, 0, 0.01);
       slider_mode_3 = p.createSlider(1, 100, 30);
+      micOrSong = p.createCheckbox("use mic", true);
+      micOrSong.changed(p.changeAudioSrc);
       saveButton = p.createButton("Save Canvas");
 
       GUI.push(
         slider_mode_1, //circles randomness, circles separation, circles fraction, circles oscillation
         slider_mode_2, //draw background alpha
         slider_mode_3, //particle velocity
+        micOrSong,
         saveButton
       );
 
@@ -454,17 +471,17 @@ window.onload = function () {
 
       return GUI;
     };
-
+    //clear GUI for resize operation
     p.clearGUI = function (GUI) {
       for (let i = 0; i < GUI.length; i++) {
         GUI[i].remove();
       }
     };
-
+    //helper function to save canvas
     p.saveCanvas = function () {
       p.save(canv);
     };
-
+    //for raycasting to center brush on mouse in 3-space
     class IntersectPlane {
       constructor(n1, n2, n3, p1, p2, p3) {
         this.normal = p.createVector(n1, n2, n3); // The normal vector of the plane
@@ -476,136 +493,27 @@ window.onload = function () {
         return (-this.d - this.normal.dot(Q)) / this.normal.dot(v);
       }
     }
-
     //necessary so google chrome will let the audio run
     p.touchStarted = function () {
       p.getAudioContext().resume();
+    };
+    //for allowing user to play a built-in song instead of having to route audio through their mic
+    p.changeAudioSrc = function () {
+      if (this.checked()) {
+        if (mic.isPlaying()) {
+          mic.pause();
+        }
+        fft = new p5.FFT();
+        mic = new p5.AudioIn();
+        mic.start();
+        mic.connect(fft);
+      } else {
+        mic = backup_song;
+        fft = new p5.FFT();
+        mic.loop();
+      }
     };
   };
 
   var main_canvas = new p5(PaintCanvas, "paint-canvas-container");
 };
-
-// p.drawParticles3d = function(freqs, waves, particles, partNum, mode) {
-//   let freq_sum = freqs.reduce((a, b) => a + b, 0);
-//   let freq_avg = freq_sum / freqs.length || 0;
-//   let maxDist = Math.sqrt(sq(windowWidth) + sq(windowHeight)) / 2;
-//   let vel_damp = slider_mode_6.value();
-//   noStroke();
-//   if (mode == 1) {
-//     for (i = 0; i < partNum; i++) {
-//       for (j = 0; j < partNum; j++) {
-//         for (k = 0; k < partNum; k++) {
-//           let pVel = Math.cbrt(
-//             sq(particles[i][j][k].xVel) +
-//               sq(particles[i][j][k].yVel) +
-//               sq(particles[i][j][k].zVel)
-//           );
-//           let particleDist = Math.cbrt(
-//             (particles[i][j][k].xLoc - windowWidth / 2) ** 2 +
-//               (particles[i][j][k].yLoc - windowHeight / 2) ** 2 +
-//               (particles[i][j][k].zLoc - windowDepth / 2) ** 2
-//           );
-//           let freq = Math.ceil(
-//             ((particleDist / maxDist) * freqs.length) % freqs.length
-//           );
-//           fill(
-//             freq % 360,
-//             freqs[freq] % 100,
-//             freqs[freq] % 100,
-//             freqs[freq] % 100
-//           );
-//           push();
-//           translate(
-//             particles[i][j][k].xLoc,
-//             particles[i][j][k].yLoc,
-//             particles[i][j][k].zLoc
-//           );
-//           sphere(pVel ** 1.5 + 5);
-//           translate(
-//             -particles[i][j][k].xLoc,
-//             -particles[i][j][k].yLoc,
-//             -particles[i][j][k].zLoc
-//           );
-//           pop();
-
-//           //move toward freq band if less than
-//           if (freqs[freq] < freq_avg) {
-//             if (particles[i][j][k].xLoc < windowWidth / 2) {
-//               particles[i][j][k].xVel += random(0, freqs[freq] / vel_damp);
-//             } else {
-//               particles[i][j][k].xVel += random(-freqs[freq] / vel_damp, 0);
-//             }
-//             if (particles[i][j][k].yLoc < windowHeight / 2) {
-//               particles[i][j][k].yVel += random(0, freqs[freq] / vel_damp);
-//             } else {
-//               particles[i][j][k].yVel += random(-freqs[freq] / vel_damp, 0);
-//             }
-//             if (particles[i][j][k].zLoc < windowDepth / 2) {
-//               particles[i][j][k].zVel += random(0, freqs[freq] / vel_damp);
-//             } else {
-//               particles[i][j][k].zVel += random(-freqs[freq] / vel_damp, 0);
-//             }
-//             //move toward freq band if greater than
-//           } else {
-//             if (particles[i][j][k].xLoc >= windowWidth / 2) {
-//               particles[i][j][k].xVel += random(0, freqs[freq] / vel_damp);
-//             } else {
-//               particles[i][j][k].xVel += random(-freqs[freq] / vel_damp, 0);
-//             }
-//             if (particles[i][j][k].yLoc >= windowHeight / 2) {
-//               particles[i][j][k].yVel += random(0, freqs[freq] / vel_damp);
-//             } else {
-//               particles[i][j][k].yVel += random(-freqs[freq] / vel_damp, 0);
-//             }
-//             if (particles[i][j][k].zLoc >= windowDepth / 2) {
-//               particles[i][j][k].zVel += random(0, freqs[freq] / vel_damp);
-//             } else {
-//               particles[i][j][k].zVel += random(-freqs[freq] / vel_damp, 0);
-//             }
-//           }
-
-//           particles[i][j][k].move(windowWidth, windowHeight, windowDepth);
-//         }
-//       }
-//     }
-//   }
-// }
-
-// function ThreeDCopy(scl, rows, cols, flying, w, h, terrain, freqs, waves) {
-//   rotateX(PI / 3);
-//   ambientLight(200, 200, 200);
-//   specularMaterial(255, 255, 255, 150);
-//   //translate(-w / 2, -h / 2);
-//   for (var y = 0; y < rows - 1; y++) {
-//     let freqy = Math.floor((freqs.length / rows) * y);
-//     stroke(freqs[freqy], 100, 100);
-//     fill(freqs[freqy], freqs[freqy], freqs[freqy]);
-//     //beginShape(TRIANGLE_STRIP);
-//     for (var x = 0; x < cols - 1; x++) {
-//       let freqx = Math.floor((freqs.length / cols) * x);
-//       let freqy = Math.floor((freqs.length / rows) * y);
-//       //let freqxy = Math.floor((freqs.length / rows / cols) * (x * y));
-//       terrain[x][y] = map(
-//         Math.sqrt(freqs[freqx] * freqs[freqy]),
-//         -0.05,
-//         0.05,
-//         -0.05,
-//         0.05
-//       );
-//       beginShape(TRIANGLE_STRIP);
-//       wavey = Math.floor((waves.length / rows) * y);
-//       wavex = Math.floor((waves.length / cols) * x);
-//       rotateY(waves[wavey] / 100);
-//       rotateX(waves[wavex] / 100);
-
-//       vertex(x * scl, y * scl, 0);
-//       vertex(x * scl, y * scl, terrain[x][y + 1]);
-//       vertex(x * scl, y + 1 * scl, terrain[x][y + 1]);
-//       vertex((x + 1) * scl, y * scl, terrain[x + 1][y]);
-//       endShape();
-//     }
-//     //endShape();
-//   }
-// }
-//https://p5js.org/examples/3d-ray-casting.html
