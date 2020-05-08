@@ -69,4 +69,35 @@ class Particle {
       this.yVel -= this.yVel / 20;
     }
   }
+
+  moveWEBGL(width_, height_) {
+    //this.xLoc < 0 && (this.xLoc = 1);
+    this.xLoc <= -width_ / 2 && (this.xVel *= -1) + 5;
+
+    //this.yLoc < 0 && (this.yLoc = 1);
+    this.yLoc <= -height_ / 2 && (this.yVel *= -1) + 5;
+
+    //this.xLoc > width_ && (this.xLoc = width_ - 1);
+    this.xLoc >= width_ / 2 && (this.xVel *= -1) - 5;
+
+    //this.yLoc > height_ && (this.yLoc = height_ - 1);
+    this.yLoc >= height_ / 2 && (this.yVel *= -1) - 5;
+
+    if (this.xVel > 0) {
+      this.xLoc += this.xVel;
+      this.xVel -= this.xVel / 20;
+    }
+    if (this.xVel < 0) {
+      this.xLoc += this.xVel;
+      this.xVel -= this.xVel / 20;
+    }
+    if (this.yVel > 0) {
+      this.yLoc += this.yVel;
+      this.yVel -= this.yVel / 20;
+    }
+    if (this.yVel < 0) {
+      this.yLoc += this.yVel;
+      this.yVel -= this.yVel / 20;
+    }
+  }
 }
